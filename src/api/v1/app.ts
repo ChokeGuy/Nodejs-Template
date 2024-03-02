@@ -1,10 +1,13 @@
 #!/usr/bin/env ts-node
 import express, { Request, Response } from "express";
 import morgan from "morgan";
-import { route } from "./routes";
-import "dotenv/config";
+import helmet from "helmet";
+import route from "../config";
+require("dotenv").config({ path: `./.env.${process.env.NODE_ENV}` });
 import mongodbConnection from "./lib/dbConnect";
-mongodbConnection();
+import cors from "cors";
+import corsOptions from "./middlewares/CorsMiddleware";
+import limiter from "./middlewares/RateLimitMiddleware";
 
 // Create an Express app
 const app = express();
@@ -17,6 +20,11 @@ app.use(
     extended: true,
   })
 );
+app.use(helmet());
+app.use(cors(corsOptions));
+app.use(limiter);
+
+mongodbConnection();
 
 route(app);
 
@@ -24,8 +32,4 @@ app.get("/", (_req: Request, _res: Response) => {
   _res.send("Product Backend API");
 });
 
-// Start the server
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+export default app

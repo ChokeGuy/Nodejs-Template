@@ -1,7 +1,8 @@
 import express from "express";
 import ProductController from "../controllers/productController";
 import AuthMiddleware from "../middlewares/AuthMiddleware";
-
+import corsOptions from "../middlewares/CorsMiddleware";
+import cors from "cors";
 const productRouter = express.Router();
 const controller = new ProductController();
 // Define your routes
