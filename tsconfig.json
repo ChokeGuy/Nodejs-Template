@@ -7,6 +7,6 @@
     "resolveJsonModule": true
   },
   // "declaration": true,
-  "include": ["src/**/*.ts", "src/app.ts"],
+  "include": ["src/**/*.ts", "src/api/v1/app.ts"],
   "exclude": ["node_modules"]
 }

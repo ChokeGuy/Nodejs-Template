@@ -2,7 +2,7 @@ import GenericResponse from "../dto/GenericResponse";
 import { Product } from "../models/productModel";
 import { Request, Response } from "express";
 
-class ProductController {
+class ProductService {
   constructor() {
     // Do the same for all other methods
     this.createResponse = this.createResponse.bind(this);
@@ -22,7 +22,7 @@ class ProductController {
   ) {
     return new GenericResponse(success, message, data, statusCode);
   }
-
+  
   public async getAllProducts(_req: Request, res: Response) {
     try {
       const products = await Product.find();
@@ -293,4 +293,4 @@ class ProductController {
     }
   }
 }
-export default ProductController;
+export default ProductService;
