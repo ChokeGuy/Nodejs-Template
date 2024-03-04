@@ -1,0 +1,17 @@
+FROM node:lts-alpine
+
+WORKDIR /usr/local/apps/myapp/dev
+
+COPY package.json ./
+RUN npm install && npm cache clean --force
+
+COPY tsconfig.json ./
+
+COPY src ./src
+COPY .env.development ./
+
+EXPOSE 3000
+
+RUN npm run build
+
+CMD ["npm", "run", "dev"]

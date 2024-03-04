@@ -1,0 +1,35 @@
+version: "3"
+services:
+  node-express-docker:
+    container_name: node-express-docker
+    restart: always
+    env_file: .env.development
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - ${PORT}:${DOCKER_PORT}
+    links:
+      - db
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - PORT=${PORT}
+      - NODE_ENV=development
+      - MONGODB_CONNECTION=mongodb://db:${MONGODB_DOCKER_PORT}/mydatabase
+      - JWT_TOKEN_SECRET=${JWT_TOKEN_SECRET}
+    command: npm run dev
+  db:
+    container_name: db
+    # image: mongo:latest
+    build:
+      context: .
+      dockerfile: ./data/Dockerfile
+    restart: always
+    env_file: .env.development
+    ports:
+      - ${MONGODB_LOCAL_PORT}:${MONGODB_DOCKER_PORT}
+    volumes:
+      - ./data:/data
+volumes:
+  db:
