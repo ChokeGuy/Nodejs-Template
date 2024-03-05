@@ -22,7 +22,7 @@ class ProductService {
   ) {
     return new GenericResponse(success, message, data, statusCode);
   }
-  
+
   public async getAllProducts(_req: Request, res: Response) {
     try {
       const products = await Product.find();
@@ -104,7 +104,10 @@ class ProductService {
       }
       const allProducts = await Product.find();
       const product = new Product({
-        id: allProducts[allProducts.length - 1].id + 1,
+        id:
+          allProducts.length > 0
+            ? allProducts[allProducts.length - 1].id + 1
+            : 0,
         name,
         image,
         description,
