@@ -1,7 +1,5 @@
 import mongoose from "mongoose";
-import MongooseDelete, {
-  SoftDeleteDocument
-} from "mongoose-delete";
+import MongooseDelete, { SoftDeleteDocument } from "mongoose-delete";
 const slug = require("mongoose-slug-updater");
 
 mongoose.plugin(slug);
@@ -32,8 +30,8 @@ const productSchema = new mongoose.Schema<ProductType>(
     deletedAt: { type: Date, default: null },
   },
   {
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+    // toJSON: { virtuals: true },
+    // toObject: { virtuals: true },
     timestamps: true,
     // query: {
     //   byName(name: string) {
@@ -47,9 +45,6 @@ productSchema.plugin(MongooseDelete, {
   overrideMethods: ["find", "countDocuments"],
 });
 
-const Product = mongoose.model<ProductType>(
-  "Product",
-  productSchema
-);
+const Product = mongoose.model<ProductType>("Product", productSchema);
 
 export { Product };

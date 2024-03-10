@@ -11,7 +11,7 @@ const controller = new ProductController();
 productRouter.get("/", controller.getAllProducts);
 
 // GET api/v1/products/:id: Get product by id
-productRouter.get("/:id", AuthMiddleware, controller.getProductById);
+productRouter.get("/:id", controller.getProductById);
 
 // POST api/v1/products: Create new product
 productRouter.post("/", controller.createNewProduct);

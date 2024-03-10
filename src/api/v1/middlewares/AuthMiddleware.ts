@@ -1,36 +1,24 @@
 import { Request, Response, NextFunction } from "express";
 import GenericResponse from "../dto/GenericResponse";
-import jwt from "jsonwebtoken";
+import { isAccessTokenValid, isTokenBlacklisted } from "../lib/tokenManage";
+
 // Pseudo code for AuthMiddleware
-function AuthMiddleware(req: Request, res: Response, next: NextFunction) {
+async function AuthMiddleware(req: Request, res: Response, next: NextFunction) {
   // Get access token from header
-  const accessToken = req.headers["authorization"]?.split(" ")[1];
-  // Check if access token is provided
+  // Check if access token exists in headers
+  const accessToken = req.headers.authorization?.split(" ")[1] as string;
   if (!accessToken) {
     return res
       .status(401)
-      .json(
-        new GenericResponse(
-          false,
-          "A token is required for authentication",
-          undefined,
-          401
-        )
-      );
-  }
-  //Verify access token
-  try {
-    const decoded = jwt.verify(
-      accessToken,
-      process.env.JWT_TOKEN_SECRET as string
-    );
-    (req as any).user = decoded;
-    return next();
-  } catch (err) {
-    console.log(err);
+      .json(new GenericResponse(false, "Authorization Token Required", null, 401));
+  } else if (
+    !isAccessTokenValid(accessToken) ||
+    (await isTokenBlacklisted(accessToken))
+  ) {
     return res
       .status(400)
-      .json(new GenericResponse(false, "Invalid Token", undefined, 400));
+      .json(new GenericResponse(false, "Invalid access token", null, 400));
   }
+  return next();
 }
 export default AuthMiddleware;
