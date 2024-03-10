@@ -1,10 +1,8 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import redisConnection from "./redisConnect";
 
-const accessTokenSecretKey =
-  process.env.JWT_ACCESS_TOKEN_SECRET || "secretKey123";
-const refreshTokenSecretKey =
-  process.env.JWT_REFRESH_TOKEN_SECRET || "secretKey1234";
+const accessTokenSecretKey = process.env.JWT_ACCESS_TOKEN_SECRET || "";
+const refreshTokenSecretKey = process.env.JWT_REFRESH_TOKEN_SECRET || "";
 export const accessTokenExpiration = 60 * 60; // 1 hours in seconds
 export const refreshTokenExpiration = 24 * 60 * 60; // 1 days in seconds
 
