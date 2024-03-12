@@ -32,6 +32,11 @@ class UserController {
     // Logic for user registration
     service.refreshAccessToken(req, res);
   }
+
+  public updateProfiles(req: Request, res: Response): void {
+    // Logic for user registration
+    service.updateProfiles(req, res);
+  }
 }
 
 export default UserController;

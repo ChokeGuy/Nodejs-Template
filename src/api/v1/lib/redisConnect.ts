@@ -2,7 +2,6 @@ import { RedisClientType } from "@redis/client";
 import { createClient } from "redis";
 
 let redisClient: RedisClientType;
-
 const redisConnection = async () => {
   if (!redisClient) {
     const options = {

@@ -14,9 +14,13 @@ import {
 } from "../lib/tokenManage";
 import Role from "../constants/Role";
 import sendEmail from "../lib/emailSending";
+import { isValidDate } from "../utils/date";
+import cloudinary, { uploadImage } from "../lib/imageUpload";
 class UserService {
   constructor() {
     this.getProfiles = this.getProfiles.bind(this);
+    this.updateProfiles = this.updateProfiles.bind(this);
+    this.refreshAccessToken = this.refreshAccessToken.bind(this);
     this.verifyOTP = this.verifyOTP.bind(this);
     this.createOTP = this.createOTP.bind(this);
     this.login = this.login.bind(this);
@@ -48,11 +52,20 @@ class UserService {
       const existingUserInMongo = await User.findOne({ username });
       const checkExistingUserInRedis = await redis.get(`account:${username}`);
 
+      // Check if phone number already used
+      const existingUserByPhoneNumber = await User.findOne({ phoneNumber });
+
       if (existingUserInMongo || checkExistingUserInRedis) {
         return res
           .status(400)
           .json(
             this.createResponse(false, "Username already exists", null, 400)
+          );
+      } else if (existingUserByPhoneNumber) {
+        return res
+          .status(400)
+          .json(
+            this.createResponse(false, "Phone number already used", null, 400)
           );
       }
 
@@ -127,7 +140,12 @@ class UserService {
         EX: 300, // Set expiration time for the OTP code
       });
       // Send an email to the user
-      await sendEmail(username);
+      const email = await sendEmail(username);
+      if (!email) {
+        return res
+          .status(500)
+          .json(this.createResponse(false, "Error sending email", null, 500));
+      }
       res
         .status(200)
         .json(
@@ -266,7 +284,9 @@ class UserService {
       }
       // Continue with the rest of the code
       // Cache the data
-      await redis.set(`profiles:${credentials.userId}`, JSON.stringify(users));
+      await redis.set(`profiles:${credentials.userId}`, JSON.stringify(users), {
+        EX: refreshTokenExpiration,
+      });
 
       res.json(this.createResponse(true, "Success", users, 200));
     } catch (error) {
@@ -275,7 +295,98 @@ class UserService {
         .json(this.createResponse(false, "Internal server error", null, 500));
     }
   }
+  async updateProfiles(req: Request, res: Response) {
+    try {
+      const { firstName, lastName, birthday } = req.body;
 
+      // Check if birthday format is valid
+      if (birthday && !isValidDate(birthday)) {
+        return res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "Invalid birthday format (Must be YYYY-MM-DD)",
+              null,
+              400
+            )
+          );
+      }
+
+      const avatar = req.file; // Assuming the image file is uploaded as "avatar" field in the form data
+      // Check if avatar is provided and it is an image
+      if (avatar) {
+        const mimeType = avatar.mimetype;
+        const isImage = mimeType.startsWith("image/");
+        if (!isImage) {
+          return res
+            .status(400)
+            .json(
+              this.createResponse(
+                false,
+                "Invalid file format. Only images are allowed.",
+                null,
+                400
+              )
+            );
+        }
+
+        // Check if image size is within the allowed limit
+        const imageSize = avatar.size;
+        const allowedSize = 5 * 1024 * 1024; // 5MB
+        if (imageSize > allowedSize) {
+          return res
+            .status(400)
+            .json(
+              this.createResponse(
+                false,
+                "Image size must be smaller than 5mb",
+                null,
+                400
+              )
+            );
+        }
+      }
+
+      const accessToken = req.headers.authorization?.split(" ")[1] || "";
+      const credentials = getCredentialsFromAccessToken(accessToken);
+
+      const user = await User.findOne({ username: credentials.username });
+
+      if (!user) {
+        return res
+          .status(404)
+          .json(this.createResponse(false, "User not found", null, 404));
+      }
+
+      const uploadAvatar = await uploadImage(
+        avatar?.path || "",
+        `user-avatar-${user._id}`,
+        "User Avatars"
+      );
+
+      // Update user info
+      user.firstName = firstName || user.firstName;
+      user.lastName = lastName || user.lastName;
+      user.birthday = birthday || user.birthday;
+      user.avatar = avatar ? uploadAvatar.url : user.avatar; // Assuming the image file path is stored in the "path" property of the uploaded file object
+
+      // Save the updated user
+      await user.save();
+      const redis = await redisConnection();
+      await redis.set(`profiles:${credentials.userId}`, JSON.stringify(user), {
+        EX: refreshTokenExpiration,
+      });
+      res.json(
+        this.createResponse(true, "Profile updated successfully", user, 200)
+      );
+    } catch (error) {
+      console.log(error);
+      res
+        .status(500)
+        .json(this.createResponse(false, "Internal server error", null, 500));
+    }
+  }
   async refreshAccessToken(req: Request, res: Response) {
     try {
       const rfToken = req.body.refreshToken;

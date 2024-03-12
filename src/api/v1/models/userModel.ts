@@ -12,6 +12,7 @@ interface UserType extends Document {
   phoneNumber: string;
   address?: string;
   birthday: Date;
+  avatar: string;
   role: Role; // Add the role property
 }
 
@@ -39,6 +40,7 @@ const userSchema = new Schema<UserType>(
       max: new Date(),
       required: true,
     },
+    avatar: { type: String, default: "" }, // Add the avatar property
     role: { type: String, enum: Object.values(Role), required: true }, // Define the role property with enum validation
   },
   {
