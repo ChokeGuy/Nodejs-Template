@@ -12,6 +12,19 @@ userRouter.post("/register/create-otp", userController.createOTP);
 // Route to register a new user
 userRouter.post("/register/verify-otp", userController.verifyOTP);
 
+// Route to get new password for user
+userRouter.post("/forgot-password", userController.forgotPassword);
+
+// Route to set new password
+userRouter.post("/reset-password", userController.resetPassword);
+
+// Route to change new password
+userRouter.post(
+  "/change-password",
+  AuthMiddleware,
+  userController.changePassword
+);
+
 // Route to login
 userRouter.post("/login", userController.login);
 

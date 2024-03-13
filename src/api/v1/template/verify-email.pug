@@ -1,0 +1,15 @@
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        title OTP Email
+        link(rel="stylesheet", href="./style.css", data-inline)            
+    body
+        .container 
+            img(src="https://res.cloudinary.com/dt2yrsa81/image/upload/v1710272772/logo_mfw6kw.jpg", alt="Logo", width="200", height="200")
+            h1 Hi 
+                span.email #{email},
+            p Your OTP Code is: 
+                span.otp-code #{otp}.
+            p Hope you enjoy our services.

@@ -53,7 +53,6 @@ export async function uploadImage(
     return result;
   } catch (error) {
     throw new Error("Fail to upload image");
-    console.log(error);
   }
 }
 

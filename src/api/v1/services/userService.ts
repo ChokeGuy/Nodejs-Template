@@ -15,7 +15,8 @@ import {
 import Role from "../constants/Role";
 import sendEmail from "../lib/emailSending";
 import { isValidDate } from "../utils/date";
-import cloudinary, { uploadImage } from "../lib/imageUpload";
+import { uploadImage } from "../lib/imageUpload";
+import checkPasswordRequirement from "../utils/password";
 class UserService {
   constructor() {
     this.getProfiles = this.getProfiles.bind(this);
@@ -84,6 +85,20 @@ class UserService {
           .json(this.createResponse(false, "Invalid request data", null, 400));
       }
 
+      // Check if password meets the security requirements
+      if (!checkPasswordRequirement(password)) {
+        return res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "Password must contain at least 8 characters, including uppercase and lowercase letters, numbers, and special characters",
+              null,
+              400
+            )
+          );
+      }
+
       // Check if password and confirm password match
       if (password !== confirmPassword) {
         return res
@@ -140,7 +155,12 @@ class UserService {
         EX: 300, // Set expiration time for the OTP code
       });
       // Send an email to the user
-      const email = await sendEmail(username);
+      const email = await sendEmail(
+        username,
+        "OTP Verification Code",
+        "verify-email",
+        "otp"
+      );
       if (!email) {
         return res
           .status(500)
@@ -273,10 +293,16 @@ class UserService {
       }
       // Fetch data from database
 
-      const users = await User.find({
-        _id: credentials.userId,
-        username: credentials.username,
-      });
+      const users = await User.find(
+        {
+          _id: credentials.userId,
+          username: credentials.username,
+        },
+        {
+          _id: 0,
+          password: 0, // Exclude the password field from the query result
+        }
+      );
       if (!users || !users.length) {
         return res
           .status(404)
@@ -295,6 +321,7 @@ class UserService {
         .json(this.createResponse(false, "Internal server error", null, 500));
     }
   }
+
   async updateProfiles(req: Request, res: Response) {
     try {
       const { firstName, lastName, birthday } = req.body;
@@ -351,7 +378,12 @@ class UserService {
       const accessToken = req.headers.authorization?.split(" ")[1] || "";
       const credentials = getCredentialsFromAccessToken(accessToken);
 
-      const user = await User.findOne({ username: credentials.username });
+      const user = await User.findOne(
+        { username: credentials.username },
+        {
+          password: 0, // Exclude the password field from the query result
+        }
+      );
 
       if (!user) {
         return res
@@ -387,6 +419,231 @@ class UserService {
         .json(this.createResponse(false, "Internal server error", null, 500));
     }
   }
+
+  async forgotPassword(req: Request, res: Response) {
+    try {
+      const { username } = req.body;
+      if (!username) {
+        return res
+          .status(400)
+          .json(this.createResponse(false, "Invalid request data", null, 400));
+      }
+
+      // Check if user exists
+      const user = await User.findOne({ username });
+      if (!user) {
+        return res
+          .status(404)
+          .json(this.createResponse(false, "User not found", null, 404));
+      }
+      const redis = await redisConnection();
+      const otpCode = Math.floor(100000 + Math.random() * 900000);
+      await redis.set(`otp-reset:${username}`, otpCode, { EX: 300 });
+
+      // Send the new password to the user's email
+      const email = await sendEmail(
+        username,
+        "OTP Reset Password Code",
+        "forgot-password",
+        "otp-reset"
+      );
+      if (!email) {
+        return res
+          .status(500)
+          .json(this.createResponse(false, "Failed to send email", null, 500));
+      }
+
+      res
+        .status(200)
+        .json(
+          this.createResponse(
+            true,
+            "Reset Password Email sent successfully",
+            null,
+            200
+          )
+        );
+    } catch (error) {
+      console.log(error);
+      res
+        .status(500)
+        .json(this.createResponse(false, "Internal server error", null, 500));
+    }
+  }
+
+  async resetPassword(req: Request, res: Response) {
+    try {
+      const { username, otp, newPassword, confirmNewPassword } = req.body;
+
+      // Get user credentials from OTP
+      const user = await User.findOne({ username: username });
+      if (!user) {
+        return res
+          .status(404)
+          .json(this.createResponse(false, "User not found", null, 404));
+      }
+
+      if (!otp || !newPassword || !confirmNewPassword) {
+        return res
+          .status(400)
+          .json(this.createResponse(false, "Invalid request data", null, 400));
+      }
+
+      // Check if new password meets the security requirements
+      if (!checkPasswordRequirement(newPassword)) {
+        return res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "Password must contain at least 8 characters, including uppercase and lowercase letters, numbers, and special characters",
+              null,
+              400
+            )
+          );
+      }
+
+      // Check if new password and confirm password match
+      if (newPassword !== confirmNewPassword) {
+        return res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "New password and confirm password do not match",
+              null,
+              400
+            )
+          );
+      }
+
+      // Check if OTP code is valid
+      const redis = await redisConnection();
+      const storedOTP = await redis.get(`otp-reset:${username}`);
+      if (storedOTP !== otp) {
+        return res
+          .status(400)
+          .json(this.createResponse(false, "Invalid OTP code", null, 400));
+      }
+
+      // Update user password
+      user.password = await bcrypt.hash(newPassword, 10);
+      await user.save();
+
+      // Delete OTP from Redis
+      await redis.del(`otp-reset:${username}`);
+      res.json(
+        this.createResponse(true, "Password reset successfully", null, 200)
+      );
+    } catch (error) {
+      console.log(error);
+      res
+        .status(500)
+        .json(this.createResponse(false, "Internal server error", null, 500));
+    }
+  }
+
+  async changePassword(req: Request, res: Response) {
+    try {
+      const { currentPassword, newPassword, confirmNewPassword } = req.body;
+      if (!currentPassword || !newPassword || !confirmNewPassword) {
+        return res
+          .status(400)
+          .json(this.createResponse(false, "Invalid request data", null, 400));
+      }
+
+      // Get user credentials from access token
+      const accessToken = req.headers.authorization?.split(" ")[1];
+      const credentials = getCredentialsFromAccessToken(accessToken || "");
+      const user = await User.findOne({ username: credentials.username });
+
+      if (!user) {
+        return res
+          .status(404)
+          .json(this.createResponse(false, "User not found", null, 404));
+      }
+
+      // Check if current password is correct
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+      if (!isPasswordValid) {
+        res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "Current password is incorrect",
+              null,
+              400
+            )
+          );
+        return;
+      }
+
+      // Check if new password meets the security requirements
+      if (!checkPasswordRequirement(newPassword)) {
+        return res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "Password must contain at least 8 characters, including uppercase and lowercase letters, numbers, and special characters",
+              null,
+              400
+            )
+          );
+      }
+
+      // Check if new password and confirm password match
+      if (newPassword !== confirmNewPassword) {
+        res
+          .status(400)
+          .json(
+            this.createResponse(
+              false,
+              "New password and confirm password do not match",
+              null,
+              400
+            )
+          );
+        return;
+      }
+
+      // Update user password
+      user.password = await bcrypt.hash(newPassword, 10);
+      await user.save();
+
+      const redis = await redisConnection();
+
+      const expirationTime =
+        credentials?.exp &&
+        credentials?.iat &&
+        credentials.exp - credentials.iat;
+      if (accessToken) {
+        res.json(
+          this.createResponse(true, "Password changed successfully", null, 200)
+        );
+        // Add access token to blacklist
+        await addTokenToBlacklist(
+          accessToken,
+          credentials.userId,
+          expirationTime
+        );
+        // Remove access token and refresh token from redis
+        await redis.del(`profiles:${credentials.userId}`);
+        await redis.del(`accessToken:${credentials.userId}`);
+        await redis.del(`refreshToken:${credentials.userId}`);
+      }
+    } catch (error) {
+      console.log(error);
+      res
+        .status(500)
+        .json(this.createResponse(false, "Internal server error", null, 500));
+    }
+  }
+
   async refreshAccessToken(req: Request, res: Response) {
     try {
       const rfToken = req.body.refreshToken;
