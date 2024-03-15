@@ -1,4 +1,5 @@
 import GenericResponse from "../dto/GenericResponse";
+import Category from "../models/categoryModel";
 import { Product } from "../models/productModel";
 import { Request, Response } from "express";
 
@@ -25,7 +26,10 @@ class ProductService {
 
   public async getAllProducts(req: Request, res: Response) {
     try {
-      let products = await Product.find();
+      let products = await Product.find()
+        .populate({ path: "category", select: "name" })
+        .exec();
+
       if (!products) {
         return res
           .status(404)
@@ -37,7 +41,10 @@ class ProductService {
       if (productName && productName !== "") {
         products = await Product.find({
           name: { $regex: productName, $options: "i" },
-        });
+        })
+          .populate({ path: "category", select: "name" })
+          .exec();
+
         if (!products || products.length === 0) {
           return res
             .status(404)
@@ -90,7 +97,9 @@ class ProductService {
             this.createResponse(false, "This id is invalid", undefined, 400)
           );
 
-      const product = await Product.findOne({ id: +productId });
+      const product = await Product.findOne({ id: +productId })
+        .populate({ path: "category", select: "name" })
+        .exec();
       if (!product) {
         return res
           .status(404)
@@ -123,8 +132,8 @@ class ProductService {
 
   public async createNewProduct(req: Request, res: Response) {
     try {
-      const { image, name, description, price, color } = req.body;
-      if (!image || !name || !description || !price || !color) {
+      const { image, name, description, price, color, categoryId } = req.body;
+      if (!image || !name || !description || !price || !color || !categoryId) {
         return res
           .status(400)
           .json(
@@ -132,6 +141,19 @@ class ProductService {
           );
       }
       const allProducts = await Product.find();
+      const category = await Category.findById(categoryId);
+      if (!category) {
+        return res
+          .status(404)
+          .json(
+            this.createResponse(
+              false,
+              `Category with id ${categoryId} not found`,
+              undefined,
+              404
+            )
+          );
+      }
       const product = new Product({
         id:
           allProducts.length > 0
@@ -142,8 +164,14 @@ class ProductService {
         description,
         price,
         color,
+        category: categoryId,
       });
       await product.save();
+
+      //Add product to category
+      category.products.push(product._id);
+      await category.save();
+
       res
         .status(201)
         .json(

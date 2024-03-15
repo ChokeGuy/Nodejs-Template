@@ -14,6 +14,7 @@ interface ProductType extends SoftDeleteDocument {
   slug: string;
   deleted?: boolean;
   deletedAt?: Date;
+  category: mongoose.Schema.Types.ObjectId;
 }
 
 // Create a schema and model for your data
@@ -28,16 +29,10 @@ const productSchema = new mongoose.Schema<ProductType>(
     slug: { type: String, slug: "name", unique: true },
     deleted: Boolean,
     deletedAt: { type: Date, default: null },
+    category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
   },
   {
-    // toJSON: { virtuals: true },
-    // toObject: { virtuals: true },
     timestamps: true,
-    // query: {
-    //   byName(name: string) {
-    //     return this.where({ name: new RegExp(name, "i") });
-    //   },
-    // },
   }
 );
 
