@@ -23,15 +23,45 @@ class ProductService {
     return new GenericResponse(success, message, data, statusCode);
   }
 
-  public async getAllProducts(_req: Request, res: Response) {
+  public async getAllProducts(req: Request, res: Response) {
     try {
-      const products = await Product.find();
+      let products = await Product.find();
       if (!products) {
         return res
           .status(404)
           .json(this.createResponse(false, "No product found", undefined, 404));
       }
-      res
+
+      //Get products by name if name is provided
+      const productName = req.query.name;
+      if (productName && productName !== "") {
+        products = await Product.find({
+          name: { $regex: productName, $options: "i" },
+        });
+        if (!products || products.length === 0) {
+          return res
+            .status(404)
+            .json(
+              this.createResponse(
+                false,
+                `No products found with name ${productName}`,
+                undefined,
+                404
+              )
+            );
+        }
+        return res
+          .status(200)
+          .json(
+            this.createResponse(
+              true,
+              `Get products with name matchs with ${productName} successfully`,
+              products,
+              200
+            )
+          );
+      }
+      return res
         .status(200)
         .json(
           this.createResponse(
@@ -50,7 +80,6 @@ class ProductService {
         );
     }
   }
-
   public async getProductById(req: Request, res: Response) {
     try {
       const productId = req.params.id;
